@@ -41,13 +41,20 @@ function socket(io) {
 
         //  HOST CHATROOM
 
-        socket.on('start-auction', () => {
-            startAuction()
-            var auction = getAuction();
+        socket.on('start-auction', (callback) => {
+            console.log("STARTED BY " + socket.id)
+            if (socket.id == getHost().socketId && getUserCount() >= 2 && getAuction().start == false) {                
+                startAuction()
+                callback(true)
+                var auction = getAuction();
 
-            io.emit('get-auction', auction)
-            io.to('auction-room').emit('start-auction', auction.bidTime)
-            updateTimer()
+                io.emit('get-auction', auction)
+                io.to('auction-room').emit('start-auction', auction.bidTime)
+                updateTimer()
+            } else {
+                io.to(socket.id).emit('fail-start-auction')
+                callback(false)
+            }
         })
 
         function updateTimer() {
