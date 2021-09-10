@@ -1,11 +1,9 @@
 var auction = {}
-var currBid = {}
+var bids = []
+var minBid = 0
 
 function newAuction(data) {
 	auction = data;
-	currBid = {
-		bid: auction.startPrice-1
-	}
 }
 
 function deleteAuction() {
@@ -32,25 +30,31 @@ function getBidTime() {
 	return auction.bidTime
 }
 
+function hasStarted() {
+	return auction.start
+}
+
 function setBid(bid, user) {
-	bid = parseInt(bid)
+	userbid = {
+		bid: parseInt(bid),
+		user: user
+	}
 
 	if (auction.start == null)
 		return null;
 
 	if (bid >= parseInt(auction.buyPrice)) {
 		console.log('autobuy')
-		currBid.bid = bid
-		currBid.user = user
+		bids.push(userbid)
 		
 		auction.start = null
 		return null;
 	}
 	
-	if (bid > currBid.bid) {
+	if ((bid >= auction.startPrice && bids.length == 0) || bid > getBid().bid) {
 		console.log(bid, user, "success")
-		currBid.bid = bid
-		currBid.user = user
+		bids.push(userbid)
+
 		return true
 	} else {
 		console.log(bid, user, "fail")
@@ -59,7 +63,21 @@ function setBid(bid, user) {
 }
 
 function getBid() {
-	return currBid
+	return bids[bids.length-1]
 }
 
-module.exports = {newAuction, deleteAuction, getAuction, startAuction, getMaxBidders, getBidTime, setBid, getBid}
+function rollbackBid(users) {
+	var changed = false
+
+	while (bids.length > 0 && users.length > 0 && !users.includes(getBid().user.email)) {
+		bids.pop()
+		changed = true
+	}
+
+	if (bids.length == 0)
+		return null
+	else
+		return changed
+}
+
+module.exports = {newAuction, deleteAuction, getAuction, startAuction, getMaxBidders, getBidTime, setBid, getBid, hasStarted, rollbackBid}

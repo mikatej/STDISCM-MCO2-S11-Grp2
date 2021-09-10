@@ -1,6 +1,6 @@
 const {getUsers, addUser, removeUser, getUserCount, entryRequest, getPermittedUsers, clearPermittedUsers, setHost, getHost, clearHost} = require('./socketUser');
 
-const {newAuction, deleteAuction, getAuction, startAuction, getMaxBidders, getBidTime, setBid, getBid} = require('./socketAuction');
+const {newAuction, deleteAuction, getAuction, startAuction, getMaxBidders, getBidTime, setBid, getBid, hasStarted, rollbackBid} = require('./socketAuction');
 
 //Socket connection
 function socket(io) {
@@ -130,7 +130,7 @@ function socket(io) {
     
         //Remove user from memory when they disconnect
         socket.on('disconnecting', ()=>{
-            if (roomName != 'home') {
+            if (roomName == 'auction-room') {
 
                 // if the host is disconnected, end the auction
                 if (getHost().socketId == socket.id) {
@@ -138,15 +138,40 @@ function socket(io) {
                     clearHost()
                     console.log(getHost().socketId, socket.id, "disconnected")
                     clearInterval(timer)
-                    io.emit('end-auction', null)
+                    io.emit('end-auction', 'host disconnected')
                     restartAuction(10000)
                 }
 
                 console.log(socket.id);
-                removeUser(socket.id);
+                var user = removeUser(socket.id);
         
                 //Send online users count to both home and auction chatroom
                 io.emit('online-users', getUserCount())
+                io.to('auction-room').emit('disconnected', user)
+
+                if (hasStarted()) {
+                    var rollback = rollbackBid(getPermittedUsers())
+                    console.log("rollback " + rollback)
+                    console.log("LEFT USERS " + getUserCount())
+
+                    if (rollback == null) {
+                        io.to('auction-room').emit('rollback', null)
+                    } else if (rollback) {
+                        io.to('auction-room').emit('rollback', getBid())
+
+                        if (getUserCount() == 1) {
+                            clearInterval(timer)
+                            io.emit('end-auction', getBid())
+                            restartAuction(10000)
+                        }
+                    }
+
+                    if (getUserCount() == 0) {
+                        clearInterval(timer)
+                        io.emit('end-auction', null)
+                        restartAuction(10000)
+                    }
+                }
             }
         })
 
@@ -215,6 +240,11 @@ function socket(io) {
                 clearInterval(timer)
                 io.emit('end-auction', getBid())
                 restartAuction(10000)
+            } else if (getUserCount() == 1) {
+                clearInterval(timer)
+                io.emit('end-auction', getBid())
+                restartAuction(10000)
+
             } else if (res) {
                 io.to('auction-room').emit('new-bid', bid, user)
             }
